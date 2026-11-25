@@ -1,1544 +1,331 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบแจ้งเตือนงาน & ปฏิทินประชุม (LINE OA)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ระบบ On-Call พยาบาล & แพทย์</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { background-color: #f0fdfa; font-family: 'Sarabun', sans-serif; overflow-x: hidden; }
+    .calendar-card { background: white; border-radius: 1rem; box-shadow: 0 4px 15px rgba(20,184,166,0.1); width: 100%; }
+    
+    /* ปรับ Grid ไม่ให้ทะลุจอมือถือ */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; }
+    
+    /* แก้ไขเส้นตารางให้บางลง (1px) และขนาดพอดีมือถือ */
+    .cell { min-height: 85px; border: 1px solid #ccfbf1; position: relative; cursor: pointer; transition: 0.2s; padding: 2px; overflow: hidden; }
+    @media (min-width: 768px) { .cell { min-height: 120px; padding: 6px; border-width: 1px; } }
+    
+    .cell:hover { background-color: #e0f2f1; z-index: 5; }
+    .cell.today { background-color: #f0fdfa; border: 2px solid #0d9488 !important; }
+    .cell.weekend { background-color: #f8fafc; }
 
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome 6 -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <!-- DataTables Bootstrap 5 CSS -->
-    <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <!-- FullCalendar v6 -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/th.global.min.js"></script>
-    <!-- ฟอนต์ TH Sarabun New (ไทยสารบัญ) -->
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- LINE LIFF SDK -->
-    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    .badge-sukanya { border-left: 3px solid #f472b6; background: #fdf2f8; color: #be185d; }
+    .badge-oomaree { border-left: 3px solid #3b82f6; background: #eff6ff; color: #1d4ed8; }
+    
+    /* ป้ายชื่อในตารางให้เล็กลง */
+    .event-badge { 
+      font-size: 9px; padding: 3px 4px; border-radius: 6px; margin-bottom: 2px; 
+      line-height: 1.3; display: block; text-align: left; 
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (min-width: 768px) { .event-badge { font-size: 11px; padding: 4px; white-space: normal; } }
+    
+    .modal-close { cursor: pointer; transition: 0.3s; }
+    .modal-close:hover { color: #f43f5e; transform: rotate(90deg); }
 
-    <style>
-        :root {
-            --mint-primary: #10b981;
-            --mint-dark: #047857;
-            --glass-bg: rgba(255, 255, 255, 0.78);
-            --glass-border: rgba(255, 255, 255, 0.65);
-        }
-        * { font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important; }
-        body {
-            background: linear-gradient(135deg, #e0f7ef 0%, #f0fdf4 45%, #e6f4f1 100%);
-            background-attachment: fixed;
-            color: #1e293b;
-            font-size: 1.06rem;
-            padding-bottom: 96px;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border: 1px solid var(--glass-border);
-            border-radius: 26px;
-            box-shadow: 0 8px 28px rgba(16, 185, 129, 0.08);
-        }
-        .app-header {
-            background: linear-gradient(135deg, #047857 0%, #10b981 55%, #34d399 100%);
-            color: white;
-            border-bottom-left-radius: 32px;
-            border-bottom-right-radius: 32px;
-            padding: 18px 18px 24px 18px;
-            box-shadow: 0 10px 28px rgba(5, 150, 105, 0.28);
-            position: relative;
-            overflow: hidden;
-        }
-        .app-header::before {
-            content: '🌿';
-            position: absolute;
-            right: -6px;
-            top: -8px;
-            font-size: 5rem;
-            opacity: 0.14;
-            pointer-events: none;
-        }
-        .profile-avatar {
-            width: 54px;
-            height: 54px;
-            border-radius: 50%;
-            border: 3px solid rgba(255, 255, 255, 0.9);
-            object-fit: cover;
-            background: #fff;
-            flex-shrink: 0;
-        }
-        .alert-banner-glass {
-            background: rgba(255, 255, 255, 0.22);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.45);
-            border-radius: 22px;
-            padding: 12px 15px;
-            margin-top: 14px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-        }
-        .bell-icon-box {
-            width: 46px;
-            height: 46px;
-            border-radius: 15px;
-            background: rgba(255, 255, 255, 0.92);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4rem;
-            flex-shrink: 0;
-        }
-        @keyframes ringBell {
-            0%, 100% { transform: rotate(0deg); }
-            20% { transform: rotate(15deg); }
-            40% { transform: rotate(-12deg); }
-            60% { transform: rotate(8deg); }
-        }
-        .bell-ringing { animation: ringBell 2.2s infinite ease-in-out; }
-        .stat-glass {
-            background: rgba(255, 255, 255, 0.82);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-            border-radius: 22px;
-            padding: 14px 8px;
-            text-align: center;
-            cursor: pointer;
-        }
-        .badge-dept {
-            background: rgba(209, 250, 229, 0.85);
-            color: #065f46;
-            font-weight: 700;
-            font-size: 0.82rem;
-            padding: 2px 10px;
-            border-radius: 12px;
-        }
-        .badge-opd { background: rgba(224, 242, 254, 0.9); color: #0369a1; font-weight: 700; font-size: 0.8rem; padding: 2px 9px; border-radius: 12px; }
-        .badge-ipd { background: rgba(243, 232, 255, 0.9); color: #7e22ce; font-weight: 700; font-size: 0.8rem; padding: 2px 9px; border-radius: 12px; }
-        .badge-allcare { background: rgba(254, 243, 199, 0.9); color: #b45309; font-weight: 700; font-size: 0.8rem; padding: 2px 9px; border-radius: 12px; }
-        .task-glass-item {
-            background: rgba(255, 255, 255, 0.84);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.75);
-            border-left: 6px solid #10b981;
-            border-radius: 22px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.04);
-        }
-        .task-glass-item.meeting { border-left-color: #f59e0b; }
-        .avatar-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(236, 253, 245, 0.95);
-            border: 1px solid #a7f3d0;
-            border-radius: 9999px;
-            padding: 2px 10px 2px 3px;
-            font-size: 0.85rem;
-            color: #065f46;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .avatar-chip img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-
-        /* Modern Glassmorphism Calendar */
-        .calendar-glass-wrapper {
-            background: rgba(255, 255, 255, 0.62);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            border: 1.5px solid rgba(255, 255, 255, 0.85);
-            border-radius: 28px;
-            padding: 14px 10px;
-            box-shadow: 0 10px 32px rgba(16, 185, 129, 0.10);
-        }
-        .fc .fc-toolbar { margin-bottom: 10px !important; gap: 6px; }
-        .fc .fc-toolbar-title { font-size: 1.15rem !important; font-weight: 800; color: #065f46; }
-        .fc .fc-button-primary {
-            background: rgba(16, 185, 129, 0.88) !important;
-            border: 1px solid rgba(255, 255, 255, 0.5) !important;
-            border-radius: 14px !important;
-            font-size: 0.85rem !important;
-            font-weight: 700 !important;
-            padding: 4px 10px !important;
-        }
-        .fc .fc-button-primary:hover, .fc .fc-button-active { background: #047857 !important; }
-        .fc-theme-standard .fc-scrollgrid {
-            border: 1px solid rgba(16, 185, 129, 0.18) !important;
-            border-radius: 20px !important;
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.45);
-        }
-        .fc-theme-standard td, .fc-theme-standard th { border-color: rgba(16, 185, 129, 0.14) !important; }
-        .fc .fc-col-header-cell { background: rgba(209, 250, 229, 0.55); padding: 4px 0; }
-        .fc .fc-col-header-cell-cushion { font-size: 0.82rem; font-weight: 800; color: #065f46; text-decoration: none; }
-        .fc .fc-daygrid-day-number { font-size: 0.78rem; font-weight: 700; color: #334155; text-decoration: none; padding: 3px 6px !important; }
-        .fc .fc-day-today { background: rgba(167, 243, 208, 0.35) !important; }
-        .fc-daygrid-event {
-            border-radius: 8px !important;
-            padding: 1px 4px !important;
-            margin: 1px 2px !important;
-            border: none !important;
-            cursor: pointer;
-        }
-        .fc-event-title {
-            font-size: 0.68rem !important;
-            font-weight: 700 !important;
-            line-height: 1.2 !important;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .fc-event-time { display: none !important; }
-        .fc .fc-daygrid-more-link { font-size: 0.68rem; font-weight: 700; color: #047857; }
-
-        /* Compact Mobile DataTable Styling */
-        #meetingsDataTable {
-            width: 100% !important;
-            table-layout: fixed;
-        }
-        #meetingsDataTable thead th {
-            font-size: 0.85rem !important;
-            font-weight: 800 !important;
-            padding: 8px 6px !important;
-            color: #065f46;
-        }
-        #meetingsDataTable tbody td {
-            font-size: 0.84rem !important;
-            padding: 8px 6px !important;
-            vertical-align: middle;
-            word-wrap: break-word;
-        }
-        .dataTables_wrapper .dataTables_filter input,
-        .dataTables_wrapper .dataTables_length select {
-            font-size: 0.85rem !important;
-            border-radius: 12px !important;
-            padding: 3px 8px !important;
-        }
-        .dataTables_wrapper .dataTables_info,
-        .dataTables_wrapper .dataTables_paginate {
-            font-size: 0.8rem !important;
-        }
-
-        /* Floating Action Button (แสดงเฉพาะหน้าส่งงาน) */
-        .fab-btn {
-            position: fixed;
-            bottom: 88px;
-            right: 16px;
-            background: linear-gradient(135deg, #059669, #10b981);
-            color: white;
-            border: none;
-            border-radius: 9999px;
-            padding: 11px 20px;
-            font-weight: 700;
-            font-size: 1.05rem;
-            box-shadow: 0 8px 22px rgba(16, 185, 129, 0.42);
-            z-index: 990;
-            display: none; /* ซ่อนเป็นค่าเริ่มต้น แสดงเฉพาะแท็บส่งงาน */
-            align-items: center;
-            gap: 8px;
-        }
-        .bottom-nav {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(16px);
-            border-top: 1px solid rgba(209, 250, 229, 0.9);
-            display: flex;
-            justify-content: space-around;
-            padding: 6px 2px 9px 2px;
-            z-index: 1000;
-        }
-        .nav-item-btn {
-            background: none; border: none; color: #64748b;
-            display: flex; flex-direction: column; align-items: center;
-            font-size: 0.78rem; font-weight: 600; flex: 1; padding: 2px 0;
-        }
-        .nav-item-btn .nav-ico { font-size: 1.15rem; margin-bottom: 1px; padding: 3px 11px; border-radius: 14px; }
-        .nav-item-btn.active { color: #047857; font-weight: 800; }
-        .nav-item-btn.active .nav-ico { background-color: #d1fae5; transform: translateY(-2px); }
-        .tab-pane-section { display: none; }
-        .tab-pane-section.active { display: block; animation: fadeIn 0.2s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .modal-content { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(16px); border-radius: 26px !important; }
-    </style>
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #99f6e4; border-radius: 10px; }
+  </style>
 </head>
-<body>
+<body class="p-2 md:p-4 pb-20 w-full">
 
-    <!-- HEADER (แสดงเฉพาะชื่อตัว + หน่วยงาน + วันที่แถวเดียวใต้หน่วยงาน) -->
-    <div class="app-header">
-        <div class="max-w-3xl mx-auto">
-            <div class="d-flex align-items-center gap-3">
-                <img id="headerAvatar" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-avatar" alt="Profile">
-                <div class="flex-grow-1 min-w-0">
-                    <div class="fw-bold text-xl leading-tight text-truncate" id="headerName">กำลังโหลด...</div>
-                    <div class="mt-1">
-                        <span class="badge bg-white/95 text-emerald-800 rounded-pill px-2.5 py-0.5 text-xs fw-bold" id="headerDeptBadge">🏥 ระบุหน่วยงาน...</span>
-                    </div>
-                    <div class="text-xs opacity-95 mt-1 fw-medium text-truncate" id="currentDateText"></div>
-                </div>
-            </div>
-
-            <div class="alert-banner-glass" onclick="showUrgent7DaysModal()">
-                <div class="bell-icon-box"><span id="bannerBellIcon" class="bell-ringing">🔔</span></div>
-                <div class="flex-grow-1">
-                    <div class="fw-bold text-lg leading-snug" id="urgentBannerTitle">กำลังตรวจสอบงานใกล้ถึงกำหนด...</div>
-                    <div class="text-sm opacity-95" id="urgentBannerSub">ระบบจะเตือนล่วงหน้า 7 วันก่อนถึงกำหนด</div>
-                </div>
-                <i class="fa-solid fa-chevron-right opacity-80"></i>
-            </div>
+  <div class="max-w-6xl mx-auto w-full">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-teal-600 w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg shadow-md">
+          <i class="fas fa-stethoscope"></i>
         </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-800">ระบบ On-Call</h1>
+          <p class="text-[10px] text-teal-600 font-bold" id="currentDateDisplay"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-teal-100 w-full justify-between md:w-auto">
+        <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-lg hover:bg-teal-50 text-teal-600"><i class="fas fa-chevron-left"></i></button>
+        <h2 id="monthTitle" class="text-sm font-bold text-slate-700 min-w-[120px] text-center uppercase">...</h2>
+        <button onclick="changeMonth(1)" class="w-8 h-8 rounded-lg hover:bg-teal-50 text-teal-600"><i class="fas fa-chevron-right"></i></button>
+        <div class="hidden md:block h-5 w-[1px] bg-teal-100 mx-1"></div>
+        <button onclick="openEditForm()" class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm">
+          <i class="fas fa-plus"></i> ลงเวร/แจ้งลา
+        </button>
+      </div>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="container max-w-3xl mx-auto mt-3 px-3">
-
-        <!-- TAB 1: หน้าหลัก -->
-        <div id="tab-home" class="tab-pane-section active">
-            <div class="row g-2.5 mb-3">
-                <div class="col-4">
-                    <div class="stat-glass" onclick="switchTab('tab-mytasks')">
-                        <div class="text-3xl fw-extrabold text-blue-600 leading-none mb-1" id="statPending">0</div>
-                        <div class="text-sm fw-bold text-slate-600">งานค้างอยู่</div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-glass" onclick="showUrgent7DaysModal()">
-                        <div class="text-3xl fw-extrabold text-amber-500 leading-none mb-1" id="statWithin7Days">0</div>
-                        <div class="text-sm fw-bold text-slate-600">ภายใน 7 วัน</div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-glass" onclick="switchTab('tab-mytasks')">
-                        <div class="text-3xl fw-extrabold text-emerald-600 leading-none mb-1" id="statCompleted">0</div>
-                        <div class="text-sm fw-bold text-slate-600">เสร็จแล้ว</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="fw-bold text-slate-800 mb-0">✨ งานที่กำลังจะมาถึง & นัดประชุม</h5>
-                <button class="btn btn-sm bg-emerald-600 text-white rounded-pill px-2.5" onclick="loadAllData()"><i class="fa-solid fa-rotate"></i></button>
-            </div>
-
-            <div id="upcomingListContainer">
-                <div class="glass-card p-4 text-center text-slate-500">กำลังโหลดข้อมูล...</div>
-            </div>
-        </div>
-
-        <!-- TAB 2: ปฏิทิน -->
-        <div id="tab-calendar" class="tab-pane-section">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="fw-bold text-slate-800 mb-0">🗓️ ปฏิทินงาน & วาระประชุม</h5>
-                <select id="filterCalCareType" class="form-select form-select-sm w-auto rounded-pill bg-white/80 backdrop-blur border-emerald-200 fw-bold" onchange="refreshCalendarEvents()">
-                    <option value="ALL">ทุกประเภท (OPD+IPD)</option>
-                    <option value="OPD">🩺 เฉพาะ OPD</option>
-                    <option value="IPD">🛏️ เฉพาะ IPD</option>
-                </select>
-            </div>
-
-            <div class="d-flex flex-wrap gap-1.5 mb-2">
-                <span class="badge rounded-pill px-2.5 py-1 text-xs" style="background:rgba(16,185,129,0.9);">📋 กำหนดส่งงาน</span>
-                <span class="badge rounded-pill px-2.5 py-1 text-xs" style="background:rgba(245,158,11,0.92); color:#000;">📅 วาระนัดประชุม</span>
-                <span class="badge rounded-pill px-2.5 py-1 text-xs" style="background:rgba(59,130,246,0.9);">📘 บันทึกประชุม</span>
-            </div>
-
-            <div class="calendar-glass-wrapper mb-3">
-                <div id="fullCalendarEl"></div>
-            </div>
-
-            <div id="selectedDateEventsBox" class="glass-card p-3" style="display:none;">
-                <h6 class="fw-bold text-emerald-700 mb-2" id="selectedDateTitle">รายการวันที่เลือก</h6>
-                <div id="selectedDateEventList"></div>
-            </div>
-        </div>
-
-        <!-- TAB 3: ติดตามงาน -->
-        <div id="tab-track" class="tab-pane-section">
-            <h5 class="fw-bold text-slate-800 mb-2">📋 ติดตามงานที่สั่ง & เช็กคนส่งไฟล์</h5>
-            <div class="glass-card p-2.5 mb-3">
-                <div class="row g-2">
-                    <div class="col-6">
-                        <select id="filterTrackDept" class="form-select form-select-sm rounded-3 fw-semibold" onchange="renderTrackTasks()">
-                            <option value="ALL">🏥 ทุกหน่วยงาน</option>
-                            <option value="หน่วยไตเทียม">หน่วยไตเทียม</option>
-                            <option value="กลุ่มการพยาบาล">กลุ่มการพยาบาล</option>
-                            <option value="งานควบคุมการติดเชื้อ (IC)">งานควบคุมการติดเชื้อ (IC)</option>
-                            <option value="งานพัฒนาคุณภาพ (CQI/HA)">งานพัฒนาคุณภาพ (CQI/HA)</option>
-                            <option value="ห้องตรวจโรค (OPD)">ห้องตรวจโรค (OPD)</option>
-                            <option value="หอผู้ป่วยใน (IPD)">หอผู้ป่วยใน (IPD)</option>
-                            <option value="อื่นๆ">อื่นๆ</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <select id="filterTrackCareType" class="form-select form-select-sm rounded-3 fw-semibold" onchange="renderTrackTasks()">
-                            <option value="ALL">🏷️ ทุกประเภท (OPD/IPD)</option>
-                            <option value="OPD">🩺 ประเภท OPD</option>
-                            <option value="IPD">🛏️ ประเภท IPD</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div id="trackTasksContainer"></div>
-        </div>
-
-        <!-- TAB 4: บันทึกการประชุมทั้งหมด (แยกแถวบนมือถือ + Filter เดือน/ปีเริ่มต้นเดือนปัจจุบัน + ตาราง 3 คอลัมน์) -->
-        <div id="tab-meetings" class="tab-pane-section">
-            <!-- แถวที่ 1: หัวข้อ -->
-            <div class="mb-2">
-                <h5 class="fw-bold text-slate-800 mb-0">📘 บันทึกการประชุมทั้งหมด</h5>
-            </div>
-            <!-- แถวที่ 2: ปุ่มเพิ่มบันทึกการประชุม -->
-            <div class="mb-2.5">
-                <button class="btn btn-success w-100 rounded-pill py-2 fw-bold shadow-sm" onclick="openAddMeetingModal()">
-                    <i class="fa-solid fa-plus me-1"></i> เพิ่มบันทึกการประชุม
-                </button>
-            </div>
-
-            <div class="glass-card p-3">
-                <!-- แถวที่ 3: ฟิวเตอร์เลือก เดือน / ปี (เริ่มต้นเดือนปัจจุบัน) -->
-                <div class="d-flex align-items-center gap-2 mb-2.5">
-                    <label class="fw-bold text-sm text-emerald-800 text-nowrap mb-0">📅 เดือน/ปี:</label>
-                    <input type="month" id="filterMeetingMonthYear" class="form-control form-control-sm rounded-pill fw-bold" onchange="renderMeetingsDataTable()">
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 text-nowrap" onclick="clearMeetingMonthFilter()">ทั้งหมด</button>
-                </div>
-
-                <div class="table-responsive">
-                    <table id="meetingsDataTable" class="table table-hover align-middle w-100">
-                        <thead class="table-success">
-                            <tr>
-                                <th style="width: 28%;">วันที่</th>
-                                <th style="width: 56%;">หัวข้อ</th>
-                                <th style="width: 16%; text-align: center;">ดู/ลบ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="meetingsTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 5: ส่งงานของฉัน -->
-        <div id="tab-mytasks" class="tab-pane-section">
-            <h5 class="fw-bold text-slate-800 mb-2">📤 งานที่ได้รับมอบหมาย & ส่งไฟล์งาน</h5>
-            <div id="myTasksContainer"></div>
-        </div>
-
-        <!-- TAB 6: โปรไฟล์ -->
-        <div id="tab-profile" class="tab-pane-section">
-            <div class="glass-card p-4 text-center mb-3">
-                <img id="profilePageAvatar" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="rounded-circle mx-auto mb-2 border border-3 border-emerald-500 shadow" style="width:86px;height:86px;object-fit:cover;">
-                <h5 class="fw-bold mb-0" id="profilePageLineName">-</h5>
-                <small class="text-slate-500 mb-3 d-block">LINE ID: <span id="profilePageUserId">-</span></small>
-
-                <div class="text-start">
-                    <label class="form-label fw-bold mb-1">👩‍⚕️ ชื่อ-นามสกุล (สำหรับแสดงในระบบ)</label>
-                    <input type="text" id="inputFullName" class="form-control rounded-4 mb-3">
-
-                    <label class="form-label fw-bold mb-1">🏥 หน่วยงาน / แผนกที่สังกัด</label>
-                    <select id="inputDepartment" class="form-select rounded-4 mb-3">
-                        <option value="หน่วยไตเทียม">หน่วยไตเทียม</option>
-                        <option value="กลุ่มการพยาบาล">กลุ่มการพยาบาล</option>
-                        <option value="งานควบคุมการติดเชื้อ (IC)">งานควบคุมการติดเชื้อ (IC)</option>
-                        <option value="งานพัฒนาคุณภาพ (CQI/HA)">งานพัฒนาคุณภาพ (CQI/HA)</option>
-                        <option value="ห้องตรวจโรค (OPD)">ห้องตรวจโรค (OPD)</option>
-                        <option value="หอผู้ป่วยใน (IPD)">หอผู้ป่วยใน (IPD)</option>
-                        <option value="อื่นๆ">อื่นๆ</option>
-                    </select>
-
-                    <label class="form-label fw-bold mb-1">🏷️ ประเภทบริการ (สำหรับคัดกรองแจกงาน)</label>
-                    <select id="inputCareType" class="form-select rounded-4 mb-3">
-                        <option value="OPD">🩺 OPD (ผู้ป่วยนอก / หน่วยบริการนอก)</option>
-                        <option value="IPD">🛏️ IPD (ผู้ป่วยใน / หอผู้ป่วย)</option>
-                        <option value="OPD/IPD">🌟 ทั้ง OPD และ IPD</option>
-                    </select>
-
-                    <button class="btn btn-success w-100 rounded-pill py-2.5 fw-bold shadow-sm" onclick="saveUserProfile()">
-                        💾 บันทึกข้อมูลโปรไฟล์ & หน่วยงาน
-                    </button>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="fw-bold text-slate-800 mb-0">👥 ทำเนียบสมาชิก (แยกตามหน่วยงาน & OPD/IPD)</h5>
-                <select id="filterDirCareType" class="form-select form-select-sm w-auto rounded-pill bg-white/90 fw-bold" onchange="renderMemberDirectory()">
-                    <option value="ALL">ทั้งหมด</option>
-                    <option value="OPD">เฉพาะ OPD</option>
-                    <option value="IPD">เฉพาะ IPD</option>
-                </select>
-            </div>
-            <div id="memberDirectoryList" class="glass-card p-3"></div>
-        </div>
-
+    <div class="mb-4 bg-teal-50 border border-teal-200 p-3 rounded-2xl flex flex-col md:flex-row items-center justify-center gap-2 shadow-sm text-sm">
+      <span class="text-teal-700 font-bold"><i class="fas fa-user-md mr-1"></i> แพทย์ Consult ประจำเดือน:</span>
+      <span id="monthlyDoctor" class="text-base text-teal-800 font-black uppercase">Loading...</span>
     </div>
 
-    <!-- FAB (แสดงเฉพาะแท็บส่งงานเท่านั้น) -->
-    <button id="fabAddTaskBtn" class="fab-btn" onclick="openCreateTaskModal()">
-        <i class="fa-solid fa-plus"></i> เพิ่มงาน
-    </button>
-
-    <!-- BOTTOM NAV -->
-    <div class="bottom-nav">
-        <button class="nav-item-btn active" id="nav-tab-home" onclick="switchTab('tab-home')"><span class="nav-ico">🏠</span><span>หน้าหลัก</span></button>
-        <button class="nav-item-btn" id="nav-tab-calendar" onclick="switchTab('tab-calendar')"><span class="nav-ico">🗓️</span><span>ปฏิทิน</span></button>
-        <button class="nav-item-btn" id="nav-tab-track" onclick="switchTab('tab-track')"><span class="nav-ico">📋</span><span>ติดตามงาน</span></button>
-        <button class="nav-item-btn" id="nav-tab-meetings" onclick="switchTab('tab-meetings')"><span class="nav-ico">📘</span><span>บันทึกประชุม</span></button>
-        <button class="nav-item-btn" id="nav-tab-mytasks" onclick="switchTab('tab-mytasks')"><span class="nav-ico">📤</span><span>ส่งงาน</span></button>
-        <button class="nav-item-btn" id="nav-tab-profile" onclick="switchTab('tab-profile')"><span class="nav-ico">👩‍⚕️</span><span>โปรไฟล์</span></button>
+    <div class="calendar-card overflow-hidden border border-teal-200">
+      <div class="calendar-grid bg-teal-50 border-b border-teal-200">
+        <div class="py-2 text-center text-[10px] font-bold text-slate-500">จ.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-slate-500">อ.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-slate-500">พ.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-slate-500">พฤ.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-slate-500">ศ.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-indigo-500">ส.</div>
+        <div class="py-2 text-center text-[10px] font-bold text-rose-500">อา.</div>
+      </div>
+      <div id="calendarDays" class="calendar-grid"></div>
     </div>
 
-    <!-- MODAL 1: สร้างคำสั่งงาน / นัดประชุม -->
-    <div class="modal fade" id="createTaskModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-emerald-600 text-white rounded-t-[26px]">
-                    <h5 class="modal-title fw-bold">✨ สั่งงานใหม่ / แจ้งเตือนวาระประชุม</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">ประเภทรายการ</label>
-                        <select id="taskType" class="form-select rounded-4">
-                            <option value="งาน">📋 มอบหมายงาน (ต้องการไฟล์ส่งกลับ)</option>
-                            <option value="ประชุม">📅 นัดหมายประชุม / วาระการประชุม</option>
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">หัวข้องาน / วาระการประชุม *</label>
-                        <input type="text" id="taskTitle" class="form-control rounded-4" placeholder="ระบุหัวข้อ...">
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">รายละเอียด / วาระ / สถานที่</label>
-                        <textarea id="taskDetail" class="form-control rounded-4" rows="3" placeholder="ระบุรายละเอียด..."></textarea>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label fw-bold mb-1">🏥 หน่วยงานที่รับผิดชอบ</label>
-                            <select id="taskTargetDept" class="form-select rounded-4">
-                                <option value="ALL">ทุกหน่วยงาน</option>
-                                <option value="หน่วยไตเทียม">หน่วยไตเทียม</option>
-                                <option value="กลุ่มการพยาบาล">กลุ่มการพยาบาล</option>
-                                <option value="งานควบคุมการติดเชื้อ (IC)">งานควบคุมการติดเชื้อ (IC)</option>
-                                <option value="งานพัฒนาคุณภาพ (CQI/HA)">งานพัฒนาคุณภาพ (CQI/HA)</option>
-                                <option value="ห้องตรวจโรค (OPD)">ห้องตรวจโรค (OPD)</option>
-                                <option value="หอผู้ป่วยใน (IPD)">หอผู้ป่วยใน (IPD)</option>
-                                <option value="อื่นๆ">อื่นๆ</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold mb-1">🏷️ แจกงานตามประเภท</label>
-                            <select id="taskTargetCareType" class="form-select rounded-4">
-                                <option value="ALL">🌟 ทั้ง OPD และ IPD</option>
-                                <option value="OPD">🩺 เฉพาะ OPD</option>
-                                <option value="IPD">🛏️ เฉพาะ IPD</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label fw-bold mb-1">⏰ วัน-เวลา กำหนดส่ง/ประชุม *</label>
-                            <input type="datetime-local" id="taskDueDate" class="form-control rounded-4">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold mb-1">👤 เจาะจงรายบุคคล</label>
-                            <select id="taskAssignee" class="form-select rounded-4">
-                                <option value="ALL_IN_GROUP">-- ทุกคนตามกลุ่มที่เลือก --</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">📎 แนบไฟล์คำสั่ง / เอกสารประกอบ</label>
-                        <input type="file" id="taskAttachmentFile" class="form-control rounded-4">
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-success rounded-pill px-4 fw-bold" onclick="submitNewTask()">บันทึกข้อมูล</button>
-                </div>
-            </div>
-        </div>
+    <div class="mt-8 bg-white rounded-[1.5rem] p-5 shadow-sm border border-teal-100 w-full">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="bg-teal-600 text-white p-2 rounded-xl text-sm"><i class="fas fa-calendar-alt"></i></div>
+        <h2 class="text-base font-bold text-teal-900">ตารางแพทย์เวร Consult ตลอดปี</h2>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="yearlyDocGrid"></div>
     </div>
+  </div>
 
-    <!-- MODAL 2: ส่งงานแนบไฟล์ -->
-    <div class="modal fade" id="submitWorkModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-primary text-white rounded-t-[26px]">
-                    <h5 class="modal-title fw-bold">📤 ส่งงาน / แนบไฟล์หลักฐาน</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="submitTaskId">
-                    <div class="fw-bold text-lg mb-1" id="submitTaskTitleDisplay"></div>
-                    <div class="text-slate-500 mb-3" id="submitTaskDetailDisplay"></div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold mb-1">📎 เลือกไฟล์งานที่ต้องการส่ง *</label>
-                        <input type="file" id="workSubmissionFile" class="form-control rounded-4">
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">💬 หมายเหตุถึงผู้สั่งงาน</label>
-                        <input type="text" id="workSubmissionNote" class="form-control rounded-4" placeholder="เช่น ส่งไฟล์รายงานเรียบร้อยค่ะ">
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">ปิด</button>
-                    <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" onclick="confirmSubmitWork()">ยืนยันการส่งงาน</button>
-                </div>
-            </div>
-        </div>
+  <div id="viewModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-2">
+    <div class="bg-white rounded-[1.5rem] w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="absolute top-4 right-4 text-2xl text-slate-400 modal-close z-10" onclick="closeModal('viewModal')">&times;</div>
+      <div class="p-6 overflow-y-auto custom-scroll w-full" id="viewContent"></div>
     </div>
+  </div>
 
-    <!-- MODAL 3: เพิ่มบันทึกการประชุม -->
-    <div class="modal fade" id="addMeetingModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-emerald-600 text-white rounded-t-[26px]">
-                    <h5 class="modal-title fw-bold">📘 บันทึกการประชุมใหม่</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">⏰ วัน-เวลาที่ประชุม *</label>
-                        <input type="datetime-local" id="meetDate" class="form-control rounded-4">
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-7">
-                            <label class="form-label fw-bold mb-1">🏥 หน่วยงาน / คณะกรรมการ *</label>
-                            <select id="meetDept" class="form-select rounded-4">
-                                <option value="หน่วยไตเทียม">หน่วยไตเทียม</option>
-                                <option value="กลุ่มการพยาบาล">กลุ่มการพยาบาล</option>
-                                <option value="งานควบคุมการติดเชื้อ (IC)">งานควบคุมการติดเชื้อ (IC)</option>
-                                <option value="งานพัฒนาคุณภาพ (CQI/HA)">งานพัฒนาคุณภาพ (CQI/HA)</option>
-                                <option value="ห้องตรวจโรค (OPD)">ห้องตรวจโรค (OPD)</option>
-                                <option value="หอผู้ป่วยใน (IPD)">หอผู้ป่วยใน (IPD)</option>
-                                <option value="อื่นๆ">อื่นๆ</option>
-                            </select>
-                        </div>
-                        <div class="col-5">
-                            <label class="form-label fw-bold mb-1">🏷️ ประเภท</label>
-                            <select id="meetCareType" class="form-select rounded-4">
-                                <option value="OPD/IPD">OPD & IPD</option>
-                                <option value="OPD">OPD</option>
-                                <option value="IPD">IPD</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">หัวข้อการประชุม (เรื่อง) *</label>
-                        <input type="text" id="meetTitle" class="form-control rounded-4" placeholder="เช่น ประชุมประจำเดือนหน่วยไตเทียม ครั้งที่ 11/2569">
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">สรุปมติที่ประชุมสำคัญ</label>
-                        <textarea id="meetSummary" class="form-control rounded-4" rows="2" placeholder="สรุปสาระสำคัญหรือข้อสั่งการ..."></textarea>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1 text-amber-700">📌 หมายเหตุ (แสดงในการ์ด Flex เมื่อแนบไฟล์วาระ)</label>
-                        <textarea id="meetNote" class="form-control rounded-4" rows="2">ให้ทุกคนอ่านรายละเอียดให้ครบถ้วน หากมีแก้ไขให้แจ้งเลขา</textarea>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold mb-1">📎 แนบไฟล์วาระ / รายงานการประชุม (ส่ง Flex เข้ากลุ่มอัตโนมัติเมื่อแนบไฟล์)</label>
-                        <input type="file" id="meetFile" class="form-control rounded-4">
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-success rounded-pill px-4 fw-bold" onclick="submitNewMeeting()">บันทึกข้อมูล</button>
-                </div>
-            </div>
-        </div>
+  <div id="editModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-2">
+    <div class="bg-white rounded-[1.5rem] w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
+      <div class="absolute top-4 right-4 text-2xl text-slate-400 modal-close z-10" onclick="closeModal('editModal')">&times;</div>
+      <div class="p-6 overflow-y-auto custom-scroll w-full">
+        <h3 class="text-xl font-black text-slate-800 mb-4" id="modalTitle">ลงบันทึกเวร / แจ้งลา</h3>
+        <form onsubmit="handleSave(event)" class="space-y-3">
+          <input type="hidden" id="f_rowIndex"> <div>
+            <label class="text-[10px] font-bold text-teal-600 uppercase ml-1 block mb-1">วันที่ปฏิบัติงาน</label>
+            <input type="date" id="f_date_raw" onchange="updateThaiDateDisplay()" required class="w-full bg-slate-50 border border-teal-50 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold">
+            <input type="hidden" id="f_date_thai">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-teal-600 uppercase ml-1 block mb-1">พยาบาล</label>
+            <select id="f_name" required class="w-full bg-slate-50 border border-teal-50 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold text-slate-700">
+              <option value="สุกัญญา">สุกัญญา (สีชมพู)</option>
+              <option value="อ้อมอารีย์">อ้อมอารีย์ (สีน้ำเงิน)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-teal-600 uppercase ml-1 block mb-1">หมายเหตุ (เช่น ลาพักร้อน, อบรม, เปลี่ยนเวร)</label>
+            <textarea id="f_note" rows="2" placeholder="ระบุรายละเอียด..." class="w-full bg-slate-50 border border-teal-50 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-medium"></textarea>
+          </div>
+          <button type="submit" class="w-full bg-teal-600 text-white font-bold py-3 mt-2 rounded-lg shadow-md hover:bg-teal-700 transition-all text-sm flex justify-center items-center gap-2">
+            <i class="fas fa-save"></i> บันทึกข้อมูล
+          </button>
+        </form>
+      </div>
     </div>
+  </div>
 
-    <!-- MODAL 4: ดูรายละเอียดงาน + ผู้ส่ง -->
-    <div class="modal fade" id="submissionStatusModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-slate-800 text-white rounded-t-[26px]">
-                    <h5 class="modal-title fw-bold" id="statusModalTitle">รายละเอียด & สถานะการส่งงาน</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="statusModalBody"></div>
-            </div>
-        </div>
-    </div>
+  <script>
+    // ==========================================
+    // 🔴 1. วาง URL Web App ของคุณในบรรทัดนี้!
+    // ==========================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbwyCud_OUEQTux-qWApN-MmfC26ApSMecspSy937CpM_sKUxWensNs6XD4ABwYgL-HJ3Q/exec"; 
+    // ==========================================
 
-    <!-- SCRIPTS -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    let nurseData = [], doctorData = [], currentViewDate = new Date();
+    const CONTACTS = { "สุกัญญา": "061-7765604", "อ้อมอารีย์": "094-1843548" };
 
-    <script>
-        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxC9mB9ypyU5YUHnL3RH3TjWQaqOrdHopcZ1DOzSdduXh1kuEJ9Dq7k0lSWdofoTq4j/exec";
-        const LIFF_ID = "YOUR_LIFF_ID_HERE";
+    window.onload = () => { fetchData(); updateHeaderDate(); };
+    function updateHeaderDate() {
+      const now = new Date();
+      document.getElementById('currentDateDisplay').innerText = `วันนี้: ${now.getDate()} ${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
+    }
 
-        let currentUser = {
-            userId: "U_GUEST_" + (localStorage.getItem("guest_uid") || (() => {
-                const id = Math.floor(100000 + Math.random() * 900000);
-                localStorage.setItem("guest_uid", id);
-                return id;
-            })()),
-            displayName: "สมาชิกหน่วยงาน",
-            fullName: localStorage.getItem("user_fullName") || "พว.อ้อมอารีย์ พุทธาวันดี",
-            department: localStorage.getItem("user_department") || "หน่วยไตเทียม",
-            careType: localStorage.getItem("user_careType") || "OPD/IPD",
-            pictureUrl: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-        };
+    async function fetchData() {
+      if(!API_URL.includes("script.google.com")) {
+        Swal.fire("ข้อผิดพลาด", "กรุณาใส่ลิงก์ API_URL ในโค้ดก่อนใช้งาน", "error"); return;
+      }
+      Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+      try {
+        const response = await fetch(API_URL + "?action=getData");
+        const data = await response.json();
+        nurseData = data.nurses; 
+        doctorData = data.doctors;
+        renderCalendar(); 
+        renderYearlyDoctors(); 
+        Swal.close();
+      } catch (error) {
+        Swal.fire("เชื่อมต่อล้มเหลว", "ไม่สามารถดึงข้อมูลได้", "error");
+      }
+    }
 
-        let appData = { users: [], tasks: [], submissions: [], meetings: [] };
-        let meetingsTableInstance = null;
-        let calendarInstance = null;
+    function parseThaiDate(dateStr) {
+      if (!dateStr) return null;
+      const parts = dateStr.trim().split(/\s+/);
+      if (parts.length < 3) return null;
+      const d = parseInt(parts[0]), m = thaiMonths.indexOf(parts[1]), y = parseInt(parts[2]) - 543;
+      return new Date(y, m, d);
+    }
 
-        document.addEventListener("DOMContentLoaded", async () => {
-            setThaiDateHeader();
-            setDefaultCurrentMonthFilter();
-            initFullCalendar();
-            await initLiffApp();
-            await loadAllData();
+    function renderCalendar() {
+      const daysDiv = document.getElementById('calendarDays');
+      daysDiv.innerHTML = '';
+      const vY = currentViewDate.getFullYear(), vM = currentViewDate.getMonth();
+      const monthYearText = `${thaiMonths[vM]} ${vY + 543}`;
+      document.getElementById('monthTitle').innerText = monthYearText;
+
+      const currentDoc = doctorData.find(d => d.monthYear.includes(monthYearText));
+      document.getElementById('monthlyDoctor').innerText = currentDoc ? currentDoc.name : "N/A";
+
+      let firstDay = new Date(vY, vM, 1).getDay();
+      let startOffset = firstDay === 0 ? 6 : firstDay - 1; 
+
+      const daysInMonth = new Date(vY, vM + 1, 0).getDate();
+      for (let i = 0; i < startOffset; i++) daysDiv.innerHTML += `<div class="cell bg-slate-50/30 border-0"></div>`;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dObj = new Date(vY, vM, day), dow = dObj.getDay();
+        const isWE = (dow === 0 || dow === 6), isToday = dObj.toDateString() === new Date().toDateString();
+        
+        const dayEvents = nurseData.filter(it => {
+          const itD = parseThaiDate(it.date);
+          return itD && itD.getDate() === day && itD.getMonth() === vM && itD.getFullYear() === vY;
         });
 
-        // ตัดเอาเฉพาะชื่อตัว (ไม่เอานามสกุล)
-        function getFirstNameOnly(fullName) {
-            if (!fullName) return "สมาชิก";
-            const cleaned = String(fullName).trim();
-            const parts = cleaned.split(/\s+/);
-            return parts[0] || cleaned;
-        }
-
-        // ตั้งค่าเริ่มต้นตัวกรองบันทึกการประชุมเป็นเดือน/ปีปัจจุบัน
-        function setDefaultCurrentMonthFilter() {
-            const now = new Date();
-            const yyyy = now.getFullYear();
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            document.getElementById("filterMeetingMonthYear").value = `${yyyy}-${mm}`;
-        }
-
-        function clearMeetingMonthFilter() {
-            document.getElementById("filterMeetingMonthYear").value = "";
-            renderMeetingsDataTable();
-        }
-
-        function openDriveFile(url) {
-            if (!url || url === "#") return;
-            if (typeof liff !== "undefined" && liff.isInClient()) {
-                liff.openWindow({ url: url, external: true });
-            } else {
-                window.open(url, "_blank");
-            }
-        }
-
-        async function postToGAS(payload) {
-            const response = await fetch(GAS_WEB_APP_URL, {
-                method: "POST",
-                redirect: "follow",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            });
-            const text = await response.text();
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                return { status: "success" };
-            }
-        }
-
-        function setThaiDateHeader() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById("currentDateText").innerText = "📅 " + now.toLocaleDateString('th-TH', options);
-        }
-
-        async function initLiffApp() {
-            try {
-                if (LIFF_ID === "YOUR_LIFF_ID_HERE") {
-                    updateProfileUI();
-                    return;
-                }
-                await liff.init({ liffId: LIFF_ID });
-                if (!liff.isLoggedIn()) { liff.login(); return; }
-                const profile = await liff.getProfile();
-                currentUser.userId = profile.userId;
-                currentUser.displayName = profile.displayName;
-                currentUser.pictureUrl = profile.pictureUrl || currentUser.pictureUrl;
-                updateProfileUI();
-            } catch (err) {
-                updateProfileUI();
-            }
-        }
-
-        function updateProfileUI() {
-            document.getElementById("headerAvatar").src = currentUser.pictureUrl;
-            // แสดงเฉพาะชื่อตัว ไม่เอานามสกุล
-            document.getElementById("headerName").innerText = getFirstNameOnly(currentUser.fullName || currentUser.displayName);
-            // แสดงเฉพาะหน่วยงาน ไม่เอาประเภท
-            document.getElementById("headerDeptBadge").innerText = `🏥 ${currentUser.department || 'ยังไม่ระบุหน่วยงาน'}`;
-
-            document.getElementById("profilePageAvatar").src = currentUser.pictureUrl;
-            document.getElementById("profilePageLineName").innerText = currentUser.displayName;
-            document.getElementById("profilePageUserId").innerText = currentUser.userId;
-            document.getElementById("inputFullName").value = currentUser.fullName || currentUser.displayName;
-            if (currentUser.department) document.getElementById("inputDepartment").value = currentUser.department;
-            if (currentUser.careType) document.getElementById("inputCareType").value = currentUser.careType;
-        }
-
-        function renderCareTypeBadge(careType) {
-            if (careType === "OPD") return `<span class="badge-opd">🩺 OPD</span>`;
-            if (careType === "IPD") return `<span class="badge-ipd">🛏️ IPD</span>`;
-            return `<span class="badge-allcare">🌟 OPD/IPD</span>`;
-        }
-
-        async function loadAllData() {
-            try {
-                const res = await fetch(`${GAS_WEB_APP_URL}?action=getAllData&userId=${encodeURIComponent(currentUser.userId)}&t=${Date.now()}`);
-                const json = await res.json();
-                if (json.status === "success") {
-                    appData = json.data;
-                    const foundUser = appData.users.find(u => u.userId === currentUser.userId);
-                    if (foundUser) {
-                        currentUser.fullName = foundUser.fullName;
-                        currentUser.department = foundUser.department;
-                        currentUser.careType = foundUser.careType || "OPD/IPD";
-                        updateProfileUI();
-                    }
-                    renderAllViews();
-                    checkAndTrigger7DayAlert();
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        function getTasksWithin7Days() {
-            const now = new Date();
-            const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-            const myRelevantTasks = appData.tasks.filter(t => isUserTargeted(t, currentUser));
-            const completedIds = new Set(appData.submissions.filter(s => s.userId === currentUser.userId).map(s => s.taskId));
-
-            return myRelevantTasks.filter(t => {
-                if (t.type === "งาน" && completedIds.has(t.taskId)) return false;
-                const due = new Date(t.dueDate);
-                return !isNaN(due.getTime()) && due >= new Date(new Date().setHours(0,0,0,0)) && due <= sevenDaysLater;
-            });
-        }
-
-        function checkAndTrigger7DayAlert() {
-            const urgentItems = getTasksWithin7Days();
-            const bannerTitle = document.getElementById("urgentBannerTitle");
-            const bannerSub = document.getElementById("urgentBannerSub");
-
-            if (urgentItems.length === 0) {
-                bannerTitle.innerText = "ไม่มีงานใกล้ถึงกำหนด 🎉";
-                bannerSub.innerText = "ระบบจะเตือนล่วงหน้า 7 วันก่อนถึงกำหนด";
-            } else {
-                bannerTitle.innerText = `มี ${urgentItems.length} รายการใกล้ถึงกำหนด (ภายใน 7 วัน) ⏰`;
-                bannerSub.innerText = `รายการล่าสุด: ${urgentItems[0].title}`;
-            }
-        }
-
-        function showUrgent7DaysModal() {
-            const urgentItems = getTasksWithin7Days();
-            if (urgentItems.length === 0) {
-                Swal.fire({ title: "ไม่มีงานใกล้ถึงกำหนด 🎉", text: "ระบบจะแจ้งเตือนล่วงหน้า 7 วันก่อนถึงกำหนด", icon: "success", confirmButtonColor: "#10b981" });
-                return;
-            }
-            const listHtml = urgentItems.map(t => `
-                <div class="text-start border rounded-4 p-2.5 mb-2 bg-emerald-50/70">
-                    <div class="fw-bold text-emerald-900">${t.type === 'ประชุม' ? '📅' : '📋'} ${t.title}</div>
-                    <div class="text-sm text-rose-600 fw-bold">⏰ กำหนด: ${formatDateTimeThai(t.dueDate)}</div>
-                    <div class="text-xs text-slate-600">${t.detail || '-'}</div>
+        daysDiv.innerHTML += `
+          <div class="cell p-1 md:p-2 ${isToday ? 'today' : ''} ${isWE ? 'weekend' : ''}" onclick="showDetails(${day}, ${vM}, ${vY})">
+            <span class="text-[9px] font-bold ${dow === 0 ? 'text-rose-500' : (dow === 6 ? 'text-indigo-500' : 'text-slate-400')}">${day}</span>
+            <div class="mt-1 space-y-[2px]">
+              ${dayEvents.map(ev => `
+                <div class="event-badge ${ev.name === 'สุกัญญา' ? 'badge-sukanya' : 'badge-oomaree'}">
+                  <span class="font-bold">${ev.name.split(' ')[0]}</span>
+                  ${ev.note ? `<br><span class="text-[7px] opacity-80 font-normal italic">(${ev.note})</span>` : ''}
                 </div>
-            `).join('');
-            Swal.fire({ title: `⏰ รายการภายใน 7 วัน (${urgentItems.length} รายการ)`, html: listHtml, confirmButtonText: "รับทราบ", confirmButtonColor: "#10b981" });
-        }
-
-        async function saveUserProfile(silent = false) {
-            currentUser.fullName = document.getElementById("inputFullName").value.trim() || currentUser.fullName;
-            currentUser.department = document.getElementById("inputDepartment").value;
-            currentUser.careType = document.getElementById("inputCareType").value;
-
-            localStorage.setItem("user_fullName", currentUser.fullName);
-            localStorage.setItem("user_department", currentUser.department);
-            localStorage.setItem("user_careType", currentUser.careType);
-            updateProfileUI();
-
-            Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            try {
-                const res = await postToGAS({ action: "saveUser", user: currentUser });
-                if (res.status === "error") throw new Error(res.message);
-                Swal.close();
-                if (!silent) Swal.fire("สำเร็จ", "บันทึกข้อมูลโปรไฟล์และหน่วยงานเรียบร้อย", "success");
-                await loadAllData();
-            } catch (err) {
-                Swal.close();
-                Swal.fire("ผิดพลาด", "ไม่สามารถบันทึกได้: " + err.message, "error");
-            }
-        }
-
-        function renderAllViews() {
-            populateAssigneeDropdown();
-            renderHomeDashboard();
-            refreshCalendarEvents();
-            renderTrackTasks();
-            renderMeetingsDataTable();
-            renderMyTasks();
-            renderMemberDirectory();
-        }
-
-        function isUserTargeted(task, user) {
-            if (task.assignee && task.assignee !== "ALL_IN_GROUP") return task.assignee === user.userId;
-            const matchDept = (task.targetDept === "ALL") || (task.targetDept === user.department);
-            const userCare = user.careType || "OPD/IPD";
-            const matchCare = (task.targetCareType === "ALL") || !task.targetCareType || (userCare === "OPD/IPD") || (userCare === task.targetCareType);
-            return matchDept && matchCare;
-        }
-
-        function populateAssigneeDropdown() {
-            const sel = document.getElementById("taskAssignee");
-            sel.innerHTML = `<option value="ALL_IN_GROUP">-- ทุกคนตามกลุ่มที่เลือก --</option>`;
-            appData.users.forEach(u => {
-                sel.innerHTML += `<option value="${u.userId}">${u.fullName} (${u.department} | ${u.careType || 'OPD/IPD'})</option>`;
-            });
-        }
-
-        function renderHomeDashboard() {
-            const myRelevantTasks = appData.tasks.filter(t => isUserTargeted(t, currentUser));
-            const mySubs = appData.submissions.filter(s => s.userId === currentUser.userId);
-            const completedTaskIds = new Set(mySubs.map(s => s.taskId));
-
-            const pendingTasks = myRelevantTasks.filter(t => t.type === "งาน" && !completedTaskIds.has(t.taskId));
-            const within7Days = getTasksWithin7Days();
-
-            document.getElementById("statPending").innerText = pendingTasks.length;
-            document.getElementById("statWithin7Days").innerText = within7Days.length;
-            document.getElementById("statCompleted").innerText = mySubs.length;
-
-            const container = document.getElementById("upcomingListContainer");
-            if (myRelevantTasks.length === 0) {
-                container.innerHTML = `<div class="glass-card p-5 text-center"><div class="text-4xl mb-2">✨</div><div class="fw-bold text-slate-700 text-lg">ยังไม่มีงานที่ต้องทำ</div></div>`;
-                return;
-            }
-
-            container.innerHTML = myRelevantTasks.slice(0, 8).map(t => {
-                const isMeeting = t.type === "ประชุม";
-                const isDone = completedTaskIds.has(t.taskId);
-                return `
-                    <div class="task-glass-item ${isMeeting ? 'meeting' : ''}">
-                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-1 mb-1">
-                            <span class="badge ${isMeeting ? 'bg-amber-400 text-dark' : 'bg-emerald-600 text-white'} rounded-pill px-2.5">
-                                ${isMeeting ? '📅 วาระประชุม' : '📋 งานที่สั่ง'}
-                            </span>
-                            <div class="d-flex gap-1">
-                                <span class="badge-dept">🏥 ${t.targetDept === 'ALL' ? 'ทุกหน่วยงาน' : t.targetDept}</span>
-                                ${renderCareTypeBadge(t.targetCareType)}
-                            </div>
-                        </div>
-                        <div class="fw-bold text-lg mt-1 text-slate-800">${t.title}</div>
-                        <div class="text-slate-600 mb-2">${t.detail || '-'}</div>
-                        <div class="d-flex justify-content-between align-items-center pt-2 border-t border-slate-200/70">
-                            <span class="text-rose-600 fw-bold text-sm">⏰ ${formatDateTimeThai(t.dueDate)}</span>
-                            <div class="d-flex gap-1.5">
-                                <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onclick="viewSubmissionDetails('${t.taskId}')">👥 รายละเอียด/ผู้ส่ง</button>
-                                ${!isMeeting ? (isDone
-                                    ? `<span class="badge bg-emerald-100 text-emerald-800 border border-emerald-300 d-flex align-items-center px-2.5">✅ ส่งแล้ว</span>`
-                                    : `<button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" onclick="openSubmitWorkModal('${t.taskId}')">ส่งงาน</button>`) : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function initFullCalendar() {
-            const calendarEl = document.getElementById('fullCalendarEl');
-            calendarInstance = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                locale: 'th',
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
-                buttonText: { today: 'วันนี้', month: 'เดือน', list: 'รายการ' },
-                height: 'auto',
-                dayMaxEvents: 3,
-                displayEventTime: false,
-                events: [],
-                eventClick: function(info) {
-                    const props = info.event.extendedProps;
-                    if (props.sourceType === 'TASK') viewSubmissionDetails(props.taskId);
-                    else if (props.sourceType === 'MEETING_RECORD') showMeetingRecordDetail(props.meeting);
-                },
-                dateClick: function(info) { showEventsForDate(info.dateStr); }
-            });
-            calendarInstance.render();
-        }
-
-        function refreshCalendarEvents() {
-            if (!calendarInstance) return;
-            const careFilter = document.getElementById("filterCalCareType").value;
-            const events = [];
-
-            appData.tasks.forEach(t => {
-                if (careFilter !== "ALL" && t.targetCareType !== "ALL" && t.targetCareType !== careFilter) return;
-                const isMeeting = t.type === "ประชุม";
-                events.push({
-                    id: t.taskId,
-                    title: t.title,
-                    start: t.dueDate,
-                    backgroundColor: isMeeting ? 'rgba(245, 158, 11, 0.88)' : 'rgba(16, 185, 129, 0.88)',
-                    textColor: isMeeting ? '#1e293b' : '#ffffff',
-                    extendedProps: { sourceType: 'TASK', taskId: t.taskId }
-                });
-            });
-
-            appData.meetings.forEach(m => {
-                if (careFilter !== "ALL" && m.careType && m.careType !== "OPD/IPD" && m.careType !== careFilter) return;
-                events.push({
-                    id: m.meetingId,
-                    title: m.title,
-                    start: m.meetingDate,
-                    backgroundColor: 'rgba(59, 130, 246, 0.88)',
-                    textColor: '#ffffff',
-                    extendedProps: { sourceType: 'MEETING_RECORD', meeting: m }
-                });
-            });
-
-            calendarInstance.removeAllEvents();
-            calendarInstance.addEventSource(events);
-        }
-
-        function showEventsForDate(dateStr) {
-            const box = document.getElementById("selectedDateEventsBox");
-            const list = document.getElementById("selectedDateEventList");
-            document.getElementById("selectedDateTitle").innerText = `📌 รายการวันที่ ${formatDateTimeThai(dateStr).split(' ')[0]}`;
-
-            const dayTasks = appData.tasks.filter(t => t.dueDate && String(t.dueDate).startsWith(dateStr));
-            const dayMeets = appData.meetings.filter(m => m.meetingDate && String(m.meetingDate).startsWith(dateStr));
-
-            if (dayTasks.length === 0 && dayMeets.length === 0) {
-                list.innerHTML = `<div class="text-slate-500">ไม่มีกำหนดส่งงานหรือวาระประชุมในวันนี้</div>`;
-                box.style.display = "block";
-                return;
-            }
-
-            let html = "";
-            dayTasks.forEach(t => {
-                const subs = appData.submissions.filter(s => s.taskId === t.taskId);
-                html += `
-                    <div class="border border-emerald-200 rounded-4 p-2.5 mb-2 bg-white/80">
-                        <div class="d-flex justify-content-between">
-                            <span class="fw-bold">${t.type === 'ประชุม' ? '📅' : '📋'} ${t.title}</span>
-                            ${renderCareTypeBadge(t.targetCareType)}
-                        </div>
-                        <div class="text-slate-600 my-1">${t.detail || '-'}</div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-emerald-700 fw-bold">${t.type === 'งาน' ? `ส่งแล้ว ${subs.length} คน` : 'วาระประชุม'}</span>
-                            <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="viewSubmissionDetails('${t.taskId}')">ดูรายละเอียด & โปรไฟล์ผู้ส่ง</button>
-                        </div>
-                    </div>
-                `;
-            });
-            dayMeets.forEach(m => {
-                html += `
-                    <div class="border border-blue-200 rounded-4 p-2.5 mb-2 bg-white/80">
-                        <div class="fw-bold text-primary">📘 บันทึกประชุม: ${m.title}</div>
-                        <div class="text-slate-600">${m.summary || '-'}</div>
-                        ${m.fileUrl ? `<button onclick="openDriveFile('${m.fileUrl}')" class="btn btn-sm btn-outline-primary rounded-pill mt-1 fw-bold">📎 เปิดไฟล์รายงานประชุม</button>` : ''}
-                    </div>
-                `;
-            });
-            list.innerHTML = html;
-            box.style.display = "block";
-        }
-
-        // เปิดดูรายละเอียดบันทึกการประชุม + ปุ่มเปิดไฟล์ + ปุ่มลบ (ใส่รหัส 3402)
-        function showMeetingRecordDetail(m) {
-            Swal.fire({
-                title: `📘 ${m.title}`,
-                html: `
-                    <div class="text-start text-sm">
-                        <p class="mb-1"><b>📅 วันที่ประชุม:</b> ${formatDateTimeThai(m.meetingDate)}</p>
-                        <p class="mb-1"><b>🏥 หน่วยงาน:</b> ${m.department} (${m.careType || 'OPD/IPD'})</p>
-                        <p class="mb-1"><b>👤 ผู้บันทึก:</b> ${m.createdBy || '-'}</p>
-                        <p class="mb-2"><b>📝 สรุปมติที่ประชุม:</b><br>${m.summary || '-'}</p>
-                        <p class="text-amber-700 mb-3"><b>📌 หมายเหตุ:</b> ${m.note || '-'}</p>
-                        <div class="d-grid gap-2">
-                            ${m.fileUrl ? `<button onclick="openDriveFile('${m.fileUrl}')" class="btn btn-success rounded-pill fw-bold">📎 เปิดไฟล์วาระ / รายงานการประชุม</button>` : `<div class="text-center text-muted small">ไม่มีไฟล์แนบ</div>`}
-                            <button onclick="promptDeleteMeeting('${m.meetingId}', '${m.title.replace(/'/g, "\\'")}')" class="btn btn-outline-danger rounded-pill fw-bold">
-                                <i class="fa-solid fa-trash-can me-1"></i> ลบบันทึกการประชุมนี้
-                            </button>
-                        </div>
-                    </div>
-                `,
-                showConfirmButton: true,
-                confirmButtonText: 'ปิด',
-                confirmButtonColor: '#64748b'
-            });
-        }
-
-        // ยืนยันลบบันทึกการประชุมด้วยรหัสผ่าน 3402
-        function promptDeleteMeeting(meetingId, title) {
-            Swal.fire({
-                title: '🗑️ ยืนยันการลบบันทึกการประชุม',
-                html: `<p class="text-sm text-slate-600 mb-2">เรื่อง: <b>${title}</b><br>กรุณากรอกรหัสผ่าน 4 หลักเพื่อยืนยันการลบ</p>`,
-                input: 'password',
-                inputPlaceholder: 'กรอกรหัสผ่าน...',
-                inputAttributes: { maxlength: 10, autocapitalize: 'off', autocorrect: 'off' },
-                showCancelButton: true,
-                confirmButtonText: 'ยืนยันลบข้อมูล',
-                cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#ef4444',
-                preConfirm: (pin) => {
-                    if (pin !== "3402") {
-                        Swal.showValidationMessage('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่');
-                        return false;
-                    }
-                    return pin;
-                }
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({ title: 'กำลังลบข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                    try {
-                        const res = await postToGAS({ action: "deleteMeeting", meetingId: meetingId, pin: result.value });
-                        if (res.status === "error") throw new Error(res.message);
-                        Swal.close();
-                        await loadAllData();
-                        Swal.fire("ลบสำเร็จ", "ลบบันทึกการประชุมออกจากระบบแล้ว", "success");
-                    } catch (err) {
-                        Swal.close();
-                        Swal.fire("ผิดพลาด", err.message, "error");
-                    }
-                }
-            });
-        }
-
-        function renderTrackTasks() {
-            const deptFilter = document.getElementById("filterTrackDept").value;
-            const careFilter = document.getElementById("filterTrackCareType").value;
-
-            const filtered = appData.tasks.filter(t => {
-                const matchDept = (deptFilter === "ALL") || (t.targetDept === deptFilter) || (t.targetDept === "ALL");
-                const matchCare = (careFilter === "ALL") || (t.targetCareType === careFilter) || (t.targetCareType === "ALL");
-                return matchDept && matchCare;
-            });
-
-            const container = document.getElementById("trackTasksContainer");
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="glass-card p-4 text-center text-slate-500">ไม่พบรายการตามตัวกรองที่เลือก</div>`;
-                return;
-            }
-
-            container.innerHTML = filtered.map(t => {
-                const targetUsers = appData.users.filter(u => isUserTargeted(t, u));
-                const taskSubs = appData.submissions.filter(s => s.taskId === t.taskId);
-
-                const submittedAvatarsHtml = taskSubs.map(s => {
-                    const u = appData.users.find(user => user.userId === s.userId) || { pictureUrl: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png', fullName: s.fullName };
-                    return `
-                        <span onclick="openDriveFile('${s.fileUrl}')" class="avatar-chip" title="คลิกเปิดไฟล์ของ ${u.fullName}">
-                            <img src="${u.pictureUrl}">
-                            <span>${u.fullName.split(' ')[0]}</span>
-                        </span>
-                    `;
-                }).join('');
-
-                return `
-                    <div class="task-glass-item ${t.type === 'ประชุม' ? 'meeting' : ''}">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
-                            <span class="badge ${t.type === 'ประชุม' ? 'bg-amber-400 text-dark' : 'bg-emerald-600 text-white'} rounded-pill px-2.5">${t.type === 'ประชุม' ? '📅 วาระประชุม' : '📋 งานที่สั่ง'}</span>
-                            <div class="d-flex gap-1">
-                                <span class="badge-dept">🏥 ${t.targetDept === 'ALL' ? 'ทุกหน่วยงาน' : t.targetDept}</span>
-                                ${renderCareTypeBadge(t.targetCareType)}
-                            </div>
-                        </div>
-                        <div class="fw-bold text-lg mt-1">${t.title}</div>
-                        <div class="text-slate-600 mb-2">${t.detail || '-'}</div>
-                        <div class="text-rose-600 fw-bold text-sm mb-2">⏰ กำหนด: ${formatDateTimeThai(t.dueDate)}</div>
-
-                        ${t.type === 'งาน' ? `
-                            <div class="mb-2">
-                                <div class="fw-bold text-emerald-700 text-sm mb-1">✅ ผู้ที่ส่งไฟล์แล้ว (${taskSubs.length}/${targetUsers.length} คน) — แตะชื่อเพื่อเปิดไฟล์:</div>
-                                <div class="d-flex flex-wrap gap-1.5">
-                                    ${submittedAvatarsHtml || '<span class="text-slate-400 text-sm">ยังไม่มีผู้ส่งงาน</span>'}
-                                </div>
-                            </div>
-                        ` : ''}
-
-                        <div class="d-flex justify-content-end gap-1.5 pt-2 border-t border-slate-200/70">
-                            ${t.attachmentUrl ? `<button onclick="openDriveFile('${t.attachmentUrl}')" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold">📎 ไฟล์คำสั่ง</button>` : ''}
-                            <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="viewSubmissionDetails('${t.taskId}')">🔍 ดูรายละเอียด & เช็กทุกคน</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function viewSubmissionDetails(taskId) {
-            const task = appData.tasks.find(t => t.taskId === taskId);
-            if (!task) return;
-            const targetUsers = appData.users.filter(u => isUserTargeted(task, u));
-            const taskSubs = appData.submissions.filter(s => s.taskId === taskId);
-
-            document.getElementById("statusModalTitle").innerText = `${task.type === 'ประชุม' ? '📅 วาระประชุม' : '📋 รายละเอียดงาน'}`;
-            let html = `
-                <div class="bg-emerald-50/80 border border-emerald-200 rounded-4 p-3 mb-3">
-                    <div class="d-flex gap-1 mb-1">
-                        <span class="badge-dept">🏥 ${task.targetDept === 'ALL' ? 'ทุกหน่วยงาน' : task.targetDept}</span>
-                        ${renderCareTypeBadge(task.targetCareType)}
-                    </div>
-                    <h5 class="fw-bold mt-1 mb-1">${task.title}</h5>
-                    <p class="text-slate-600 mb-2">${task.detail || 'ไม่มีรายละเอียดเพิ่มเติม'}</p>
-                    <div class="text-rose-600 fw-bold">⏰ กำหนดเวลา: ${formatDateTimeThai(task.dueDate)}</div>
-                    ${task.attachmentUrl ? `<button onclick="openDriveFile('${task.attachmentUrl}')" class="btn btn-sm btn-outline-dark rounded-pill mt-2 px-3 fw-bold">📎 เปิดไฟล์คำสั่ง/วาระประชุม</button>` : ''}
-                </div>
-                <h6 class="fw-bold mb-2">👥 รายชื่อผู้รับผิดชอบ (${taskSubs.length}/${targetUsers.length} คนส่งแล้ว)</h6>
-                <div class="list-group list-group-flush">
-            `;
-
-            targetUsers.forEach(u => {
-                const sub = taskSubs.find(s => s.userId === u.userId);
-                html += `
-                    <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <img src="${u.pictureUrl}" class="rounded-circle border" style="width:42px;height:42px;object-fit:cover;">
-                            <div>
-                                <div class="fw-bold">${u.fullName}</div>
-                                <div class="d-flex gap-1">
-                                    <span class="badge-dept">${u.department}</span>
-                                    ${renderCareTypeBadge(u.careType)}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            ${task.type === 'ประชุม' ? `<span class="badge bg-info-subtle text-info px-2.5 py-1">รับทราบวาระ</span>` : (sub ? `
-                                <span class="badge bg-success mb-1 d-block">✅ ส่งแล้ว (${formatDateTimeThai(sub.submittedAt)})</span>
-                                <button onclick="openDriveFile('${sub.fileUrl}')" class="btn btn-sm btn-outline-primary py-0 px-2.5 rounded-pill fw-bold">📎 เปิดไฟล์แนบ</button>
-                            ` : `
-                                <span class="badge bg-danger-subtle text-danger mb-1 d-block">⏳ ยังไม่ส่ง</span>
-                            `)}
-                        </div>
-                    </div>
-                `;
-            });
-            html += `</div>`;
-            document.getElementById("statusModalBody").innerHTML = html;
-            new bootstrap.Modal(document.getElementById('submissionStatusModal')).show();
-        }
-
-        // ตาราง DataTables 3 คอลัมน์ (วันที่ | หัวข้อ | ไอคอนรูปตา 👁️) + กรองตาม เดือน/ปี
-        function renderMeetingsDataTable() {
-            const monthFilter = document.getElementById("filterMeetingMonthYear").value; // รูปแบบ YYYY-MM
-
-            let filteredList = [...(appData.meetings || [])];
-            if (monthFilter) {
-                filteredList = filteredList.filter(m => String(m.meetingDate || "").startsWith(monthFilter));
-            }
-
-            // เรียงเรื่องล่าสุดอยู่บนสุดเสมอ
-            filteredList.sort((a, b) => {
-                const dateA = new Date(a.meetingDate).getTime() || 0;
-                const dateB = new Date(b.meetingDate).getTime() || 0;
-                return dateB - dateA;
-            });
-
-            const tableRows = filteredList.map(m => {
-                const dateCell = `<span class="d-none">${m.meetingDate || ''}</span><div class="fw-bold text-emerald-700 leading-tight">${formatShortDateThai(m.meetingDate)}</div>`;
-                const titleCell = `
-                    <div class="fw-bold text-slate-800 leading-snug">${m.title || '-'}</div>
-                    <div class="text-xs text-slate-500">${m.department || ''} ${m.fileUrl ? '📎' : ''}</div>
-                `;
-                const safeJson = encodeURIComponent(JSON.stringify(m));
-                const actionCell = `
-                    <div class="text-center">
-                        <button onclick="openMeetingDetailFromRow('${safeJson}')" class="btn btn-sm btn-outline-success rounded-circle p-1.5" title="ดูรายละเอียด / ลบ">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
-                    </div>
-                `;
-                return [dateCell, titleCell, actionCell];
-            });
-
-            if ($.fn.DataTable.isDataTable('#meetingsDataTable')) {
-                meetingsTableInstance.clear().rows.add(tableRows).draw();
-            } else {
-                meetingsTableInstance = $('#meetingsDataTable').DataTable({
-                    data: tableRows,
-                    order: [[0, 'desc']],
-                    pageLength: 10,
-                    autoWidth: false,
-                    language: {
-                        search: "ค้นหา:",
-                        lengthMenu: "แสดง _MENU_",
-                        info: "_START_-_END_ จาก _TOTAL_",
-                        paginate: { previous: "‹", next: "›" },
-                        zeroRecords: "ไม่พบบันทึกการประชุมในเดือนที่เลือก",
-                        emptyTable: "ยังไม่มีบันทึกการประชุมในเดือนนี้"
-                    }
-                });
-            }
-        }
-
-        function openMeetingDetailFromRow(encodedJson) {
-            const m = JSON.parse(decodeURIComponent(encodedJson));
-            showMeetingRecordDetail(m);
-        }
-
-        function renderMyTasks() {
-            const myTasks = appData.tasks.filter(t => t.type === "งาน" && isUserTargeted(t, currentUser));
-            const mySubs = appData.submissions.filter(s => s.userId === currentUser.userId);
-            const container = document.getElementById("myTasksContainer");
-
-            if (myTasks.length === 0) {
-                container.innerHTML = `<div class="glass-card p-4 text-center text-slate-500">🎉 ไม่มีงานค้างส่งในขณะนี้</div>`;
-                return;
-            }
-
-            container.innerHTML = myTasks.map(t => {
-                const sub = mySubs.find(s => s.taskId === t.taskId);
-                return `
-                    <div class="task-glass-item">
-                        <div class="d-flex justify-content-between flex-wrap gap-1 mb-1">
-                            <div class="d-flex gap-1">
-                                <span class="badge-dept">🏥 ${t.targetDept === 'ALL' ? 'ทุกหน่วยงาน' : t.targetDept}</span>
-                                ${renderCareTypeBadge(t.targetCareType)}
-                            </div>
-                            ${sub ? `<span class="badge bg-success rounded-pill px-2.5">✅ ส่งเรียบร้อยแล้ว</span>` : `<span class="badge bg-danger rounded-pill px-2.5">⏳ รอส่งงาน</span>`}
-                        </div>
-                        <div class="fw-bold text-lg mt-1">${t.title}</div>
-                        <div class="text-slate-600 mb-2">${t.detail || '-'}</div>
-                        <div class="text-rose-600 fw-bold text-sm mb-2">⏰ กำหนดส่ง: ${formatDateTimeThai(t.dueDate)}</div>
-                        <div class="d-flex flex-wrap gap-2">
-                            ${t.attachmentUrl ? `<button onclick="openDriveFile('${t.attachmentUrl}')" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold">📥 โหลดไฟล์ต้นเรื่อง</button>` : ''}
-                            ${sub ? `<button onclick="openDriveFile('${sub.fileUrl}')" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold">📎 ดูไฟล์ที่ส่งแล้ว</button>` : ''}
-                            <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold" onclick="openSubmitWorkModal('${t.taskId}')">
-                                ${sub ? '🔄 อัปเดตไฟล์ส่งงานใหม่' : '📤 อัปโหลดไฟล์ส่งงาน'}
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderMemberDirectory() {
-            const careFilter = document.getElementById("filterDirCareType").value;
-            const filteredUsers = appData.users.filter(u => careFilter === "ALL" || u.careType === "OPD/IPD" || u.careType === careFilter);
-            const container = document.getElementById("memberDirectoryList");
-            if (filteredUsers.length === 0) {
-                container.innerHTML = `<div class="text-center text-slate-400 py-3">ยังไม่มีรายชื่อสมาชิกในกลุ่มนี้</div>`;
-                return;
-            }
-            container.innerHTML = filteredUsers.map(u => `
-                <div class="d-flex align-items-center justify-content-between py-2.5 border-b border-slate-200/70">
-                    <div class="d-flex align-items-center gap-2.5">
-                        <img src="${u.pictureUrl}" class="rounded-circle border" style="width:44px;height:44px;object-fit:cover;">
-                        <div>
-                            <div class="fw-bold">${u.fullName}</div>
-                            <div class="text-slate-500 text-xs">LINE: ${u.displayName}</div>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <div class="mb-1"><span class="badge-dept">${u.department}</span></div>
-                        ${renderCareTypeBadge(u.careType)}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function openCreateTaskModal() { new bootstrap.Modal(document.getElementById('createTaskModal')).show(); }
-        function openAddMeetingModal() { new bootstrap.Modal(document.getElementById('addMeetingModal')).show(); }
-
-        function openSubmitWorkModal(taskId) {
-            const task = appData.tasks.find(t => t.taskId === taskId);
-            document.getElementById("submitTaskId").value = taskId;
-            document.getElementById("submitTaskTitleDisplay").innerText = task.title;
-            document.getElementById("submitTaskDetailDisplay").innerText = task.detail || "";
-            document.getElementById("workSubmissionFile").value = "";
-            new bootstrap.Modal(document.getElementById('submitWorkModal')).show();
-        }
-
-        async function submitNewTask() {
-            const title = document.getElementById("taskTitle").value.trim();
-            const dueDate = document.getElementById("taskDueDate").value;
-            if (!title || !dueDate) {
-                Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุหัวข้อและวัน-เวลาครบกำหนด", "warning");
-                return;
-            }
-
-            Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            try {
-                const fileInput = document.getElementById("taskAttachmentFile");
-                let fileData = fileInput.files.length > 0 ? await readFileAsBase64(fileInput.files[0]) : null;
-
-                const payload = {
-                    action: "createTask",
-                    task: {
-                        type: document.getElementById("taskType").value,
-                        title: title,
-                        detail: document.getElementById("taskDetail").value.trim(),
-                        targetDept: document.getElementById("taskTargetDept").value,
-                        targetCareType: document.getElementById("taskTargetCareType").value,
-                        assignee: document.getElementById("taskAssignee").value,
-                        dueDate: dueDate,
-                        createdBy: currentUser.fullName
-                    },
-                    file: fileData
-                };
-
-                const res = await postToGAS(payload);
-                if (res.status === "error") throw new Error(res.message);
-
-                Swal.close();
-                bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
-                document.getElementById("taskTitle").value = "";
-                document.getElementById("taskDetail").value = "";
-                document.getElementById("taskAttachmentFile").value = "";
-                await loadAllData();
-                Swal.fire("สำเร็จ", "บันทึกข้อมูลลงชีตและปฏิทินเรียบร้อยแล้ว", "success");
-            } catch (err) {
-                Swal.close();
-                Swal.fire("เกิดข้อผิดพลาด", "กรุณาลองใหม่อีกครั้ง: " + err.message, "error");
-            }
-        }
-
-        async function confirmSubmitWork() {
-            const taskId = document.getElementById("submitTaskId").value;
-            const fileInput = document.getElementById("workSubmissionFile");
-            if (fileInput.files.length === 0) {
-                Swal.fire("กรุณาแนบไฟล์", "โปรดเลือกไฟล์งานก่อนกดยืนยันการส่ง", "warning");
-                return;
-            }
-
-            Swal.fire({ title: 'กำลังอัปโหลดไฟล์ส่งงาน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            try {
-                const fileData = await readFileAsBase64(fileInput.files[0]);
-                const payload = {
-                    action: "submitWork",
-                    submission: {
-                        taskId: taskId,
-                        userId: currentUser.userId,
-                        fullName: currentUser.fullName,
-                        department: currentUser.department,
-                        careType: currentUser.careType,
-                        note: document.getElementById("workSubmissionNote").value.trim()
-                    },
-                    file: fileData
-                };
-
-                const res = await postToGAS(payload);
-                if (res.status === "error") throw new Error(res.message);
-
-                Swal.close();
-                bootstrap.Modal.getInstance(document.getElementById('submitWorkModal')).hide();
-                await loadAllData();
-                Swal.fire({
-                    title: "ส่งงานสำเร็จ ✅",
-                    html: res.fileUrl ? `อัปโหลดไฟล์เรียบร้อยแล้ว<br><button onclick="openDriveFile('${res.fileUrl}')" class="btn btn-sm btn-outline-success rounded-pill mt-2 fw-bold">📎 ตรวจสอบลิงก์ไฟล์ใน Drive</button>` : "อัปโหลดไฟล์เรียบร้อยแล้ว",
-                    icon: "success",
-                    confirmButtonColor: "#10b981"
-                });
-            } catch (err) {
-                Swal.close();
-                Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถอัปโหลดไฟล์ได้: " + err.message, "error");
-            }
-        }
-
-        async function submitNewMeeting() {
-            const meetDate = document.getElementById("meetDate").value;
-            const meetTitle = document.getElementById("meetTitle").value.trim();
-            if (!meetDate || !meetTitle) {
-                Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุวัน-เวลาและหัวข้อการประชุม", "warning");
-                return;
-            }
-
-            Swal.fire({ title: 'กำลังบันทึกการประชุม...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            try {
-                const fileInput = document.getElementById("meetFile");
-                let fileData = fileInput.files.length > 0 ? await readFileAsBase64(fileInput.files[0]) : null;
-
-                const payload = {
-                    action: "addMeeting",
-                    meeting: {
-                        meetingDate: meetDate,
-                        department: document.getElementById("meetDept").value,
-                        careType: document.getElementById("meetCareType").value,
-                        title: meetTitle,
-                        summary: document.getElementById("meetSummary").value.trim(),
-                        note: document.getElementById("meetNote").value.trim(),
-                        createdBy: currentUser.fullName,
-                        senderPictureUrl: currentUser.pictureUrl // ส่งรูปโปรไฟล์ผู้ส่งไปแสดงใน Flex
-                    },
-                    file: fileData
-                };
-
-                const res = await postToGAS(payload);
-                if (res.status === "error") throw new Error(res.message);
-
-                Swal.close();
-                bootstrap.Modal.getInstance(document.getElementById('addMeetingModal')).hide();
-                document.getElementById("meetTitle").value = "";
-                document.getElementById("meetSummary").value = "";
-                document.getElementById("meetFile").value = "";
-
-                // ปรับตัวกรองเดือนให้ตรงกับเดือนที่เพิ่งบันทึกเพื่อให้เห็นรายการในตารางทันที
-                document.getElementById("filterMeetingMonthYear").value = meetDate.substring(0, 7);
-                await loadAllData();
-                switchTab('tab-meetings');
-
-                Swal.fire({
-                    title: "บันทึกสำเร็จ 🎉",
-                    html: res.fileUrl
-                        ? `บันทึกลงตารางและส่งการ์ด Flex พร้อมรูปโปรไฟล์เข้ากลุ่ม LINE แล้ว<br><button onclick="openDriveFile('${res.fileUrl}')" class="btn btn-sm btn-outline-success rounded-pill mt-2 fw-bold">📎 เปิดดูไฟล์รายงาน</button>`
-                        : "บันทึกลงตารางเรียบร้อยแล้ว (ไม่มีไฟล์แนบจึงไม่ส่ง Flex)",
-                    icon: "success",
-                    confirmButtonColor: "#10b981"
-                });
-            } catch (err) {
-                Swal.close();
-                Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกได้: " + err.message, "error");
-            }
-        }
-
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-pane-section').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-item-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.getElementById('nav-' + tabId).classList.add('active');
-
-            // แสดงปุ่มลอย "+ เพิ่มงาน" เฉพาะหน้าส่งงาน (tab-mytasks) เท่านั้น
-            const fab = document.getElementById("fabAddTaskBtn");
-            fab.style.display = (tabId === 'tab-mytasks') ? 'flex' : 'none';
-
-            if (tabId === 'tab-calendar' && calendarInstance) setTimeout(() => calendarInstance.updateSize(), 80);
-            if (tabId === 'tab-meetings' && meetingsTableInstance) meetingsTableInstance.columns.adjust().draw();
-        }
-
-        function readFileAsBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve({ fileName: file.name, mimeType: file.type, base64: reader.result.split(',')[1] });
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function formatDateTimeThai(isoStr) {
-            if (!isoStr) return "-";
-            const d = new Date(isoStr);
-            if (isNaN(d.getTime())) return isoStr;
-            return d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) +
-                   ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-        }
-
-        function formatShortDateThai(isoStr) {
-            if (!isoStr) return "-";
-            const d = new Date(isoStr);
-            if (isNaN(d.getTime())) return isoStr;
-            return d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
-        }
-    </script>
+              `).join('')}
+            </div>
+          </div>`;
+      }
+    }
+
+    function renderYearlyDoctors() {
+      const grid = document.getElementById('yearlyDocGrid');
+      grid.innerHTML = doctorData.map(doc => `
+        <div class="bg-teal-50 border border-teal-100 p-3 rounded-xl text-center">
+          <p class="text-[9px] font-bold text-teal-600 uppercase mb-1">${doc.monthYear}</p>
+          <p class="text-xs font-black text-slate-700">${doc.name}</p>
+        </div>`).join('');
+    }
+
+    function showDetails(day, month, year) {
+      const tDate = `${day} ${thaiMonths[month]} ${year + 543}`;
+      const evs = nurseData.filter(it => it.date === tDate);
+      let html = `<div class="text-center mb-4"><p class="text-teal-600 font-black text-lg">${tDate}</p></div>`;
+      
+      if(evs.length === 0) {
+        html += `<p class="text-center text-slate-400 py-6 text-xs italic">ไม่มีเวรพยาบาลในวันนี้</p>`;
+      } else {
+        evs.forEach(ev => {
+          const phone = CONTACTS[ev.name];
+          html += `
+          <div class="p-4 rounded-2xl ${ev.name === 'สุกัญญา' ? 'bg-pink-50' : 'bg-blue-50'} border border-white shadow-sm flex justify-between items-center mb-3 relative">
+            
+            <button onclick="editEntry(${ev.rowIndex})" class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white text-teal-600 shadow flex justify-center items-center hover:bg-teal-50 text-[10px]">
+              <i class="fas fa-edit"></i>
+            </button>
+
+            <div>
+              <p class="font-black text-base ${ev.name === 'สุกัญญา' ? 'text-pink-700' : 'text-blue-700'}">${ev.name}</p>
+              <p class="text-[11px] text-slate-500 mt-1">${ev.note || 'ปฏิบัติหน้าที่ปกติ'}</p>
+            </div>
+            
+            <button onclick="confirmCall('${ev.name}', '${phone}')" class="w-10 h-10 rounded-full bg-white text-green-500 shadow-md flex items-center justify-center hover:scale-110 active:scale-95 transition-all text-sm mt-4 mr-6">
+              <i class="fas fa-phone-alt"></i>
+            </button>
+          </div>`;
+        });
+      }
+      document.getElementById('viewContent').innerHTML = html;
+      openModal('viewModal');
+    }
+
+    function confirmCall(n, p) {
+      Swal.fire({
+        title: 'ยืนยันการโทร', text: `คุณต้องการโทรหา ${n} ใช่หรือไม่?`,
+        icon: 'question', showCancelButton: true, confirmButtonColor: '#10b981', confirmButtonText: 'โทรออก', cancelButtonText: 'ยกเลิก',
+        customClass: { popup: 'rounded-2xl' }
+      }).then((r) => { if (r.isConfirmed) window.location.href = `tel:${p}`; });
+    }
+
+    function openEditForm() {
+      const vY = currentViewDate.getFullYear(), vM = String(currentViewDate.getMonth() + 1).padStart(2, '0');
+      document.getElementById('modalTitle').innerText = "ลงบันทึกเวร / แจ้งลา (ใหม่)";
+      document.getElementById('f_rowIndex').value = ""; // เคลียร์ rowIndex
+      document.getElementById('f_date_raw').value = `${vY}-${vM}-01`; 
+      document.getElementById('f_note').value = '';
+      updateThaiDateDisplay(); 
+      openModal('editModal');
+    }
+
+    function editEntry(rowIndex) {
+      closeModal('viewModal');
+      const ev = nurseData.find(d => d.rowIndex == rowIndex);
+      if(!ev) return;
+
+      document.getElementById('modalTitle').innerText = "แก้ไขข้อมูลเวร";
+      document.getElementById('f_rowIndex').value = ev.rowIndex;
+      
+      const dObj = parseThaiDate(ev.date);
+      if (dObj) {
+        const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dObj.getDate()).padStart(2, '0');
+        document.getElementById('f_date_raw').value = `${dObj.getFullYear()}-${mm}-${dd}`;
+      }
+      updateThaiDateDisplay();
+
+      document.getElementById('f_name').value = ev.name;
+      document.getElementById('f_note').value = ev.note || "";
+      openModal('editModal');
+    }
+
+    function updateThaiDateDisplay() {
+      const val = document.getElementById('f_date_raw').value; if(!val) return;
+      const d = new Date(val); document.getElementById('f_date_thai').value = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+    }
+
+    async function handleSave(e) {
+      e.preventDefault();
+      const payload = { 
+        rowIndex: document.getElementById('f_rowIndex').value,
+        date: document.getElementById('f_date_thai').value, 
+        name: document.getElementById('f_name').value, 
+        note: document.getElementById('f_note').value 
+      };
+      
+      Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'saveEntry', payload: payload }),
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        closeModal('editModal');
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: result.message, timer: 1500 });
+        fetchData();
+      } catch (error) {
+        Swal.fire("ข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลได้", "error");
+      }
+    }
+
+    function changeMonth(o) { currentViewDate.setMonth(currentViewDate.getMonth() + o); renderCalendar(); }
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); document.getElementById(id).classList.add('flex'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex'); }
+  </script>
 </body>
 </html>
